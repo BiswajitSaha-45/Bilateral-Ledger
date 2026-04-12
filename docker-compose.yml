@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=changeme-in-production
+      - JWT_SECRET_KEY=changeme-jwt-in-production
+      - DATABASE_URL=sqlite:////data/ledger.db
+    volumes:
+      - ledger_data:/data
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+volumes:
+  ledger_data:
