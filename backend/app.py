@@ -1,3 +1,9 @@
+from dotenv import load_dotenv
+import os
+
+# Load .env FIRST before any route imports read os.environ at module level
+load_dotenv()
+
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -5,7 +11,7 @@ from database import db, init_db
 from routes.auth import auth_bp
 from routes.transactions import transactions_bp
 from routes.users import users_bp
-import os
+from routes.payments import payments_bp
 
 def create_app():
     app = Flask(__name__)
@@ -22,6 +28,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
     app.register_blueprint(users_bp, url_prefix='/api/users')
+    app.register_blueprint(payments_bp, url_prefix='/api/payments')
 
     with app.app_context():
         init_db()

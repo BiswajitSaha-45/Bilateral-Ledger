@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { transactionsAPI } from '../../utils/api';
+import { paymentsAPI } from '../../utils/paymentsAPI';
+import { openRazorpayCheckout } from '../../utils/razorpay';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -11,27 +13,73 @@ export default function DashboardPage() {
   const [pendingTxns, setPendingTxns] = useState([]);
   const [stats, setStats] = useState({ totalOwed: 0, totalOwe: 0, pendingCount: 0 });
   const [loading, setLoading] = useState(true);
+  const [payingPartnerId, setPayingPartnerId] = useState(null); // tracks which Pay Now is in progress
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [partnersRes, pendingRes] = await Promise.all([
-          transactionsAPI.getPartners(),
-          transactionsAPI.list({ status: 'pending', per_page: 5 }),
-        ]);
-        const p = partnersRes.data.partners;
-        setPartners(p);
-        setPendingTxns(pendingRes.data.transactions);
-        setStats({
-          totalOwed: p.filter(x => x.balance > 0).reduce((s, x) => s + x.balance, 0),
-          totalOwe:  p.filter(x => x.balance < 0).reduce((s, x) => s + Math.abs(x.balance), 0),
-          pendingCount: p.reduce((s, x) => s + x.pending_count, 0),
-        });
-      } catch { toast.error('Failed to load dashboard'); }
-      finally { setLoading(false); }
-    };
-    load();
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [partnersRes, pendingRes] = await Promise.all([
+        transactionsAPI.getPartners(),
+        transactionsAPI.list({ status: 'pending', per_page: 5 }),
+      ]);
+      const p = partnersRes.data.partners;
+      setPartners(p);
+      setPendingTxns(pendingRes.data.transactions);
+      setStats({
+        totalOwed: p.filter(x => x.balance > 0).reduce((s, x) => s + x.balance, 0),
+        totalOwe:  p.filter(x => x.balance < 0).reduce((s, x) => s + Math.abs(x.balance), 0),
+        pendingCount: p.reduce((s, x) => s + x.pending_count, 0),
+      });
+    } catch {
+      toast.error('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  const handlePayNow = async (partner, e) => {
+    e.preventDefault(); // prevent Link navigation
+    e.stopPropagation();
+
+    setPayingPartnerId(partner.id);
+    try {
+      const orderRes = await paymentsAPI.createOrder(partner.id);
+      const order = orderRes.data;
+
+      openRazorpayCheckout({
+        order,
+        userInfo: user,
+        onSuccess: async (razorpayResponse) => {
+          try {
+            const verifyRes = await paymentsAPI.verifyPayment({
+              razorpay_order_id: razorpayResponse.razorpay_order_id,
+              razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+              razorpay_signature: razorpayResponse.razorpay_signature,
+              partner_id: partner.id,
+            });
+            toast.success(verifyRes.data.message || '✅ Khata settled!');
+            await loadDashboard(); // refresh balances
+          } catch (err) {
+            toast.error(err.response?.data?.error || 'Payment verified but settlement failed. Contact support.');
+          } finally {
+            setPayingPartnerId(null);
+          }
+        },
+        onDismiss: (errMsg) => {
+          if (errMsg) {
+            toast.error(`Payment failed: ${errMsg}`);
+          } else {
+            toast('Payment cancelled.', { icon: '↩️' });
+          }
+          setPayingPartnerId(null);
+        },
+      });
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not initiate payment');
+      setPayingPartnerId(null);
+    }
+  };
 
   if (loading) return <div className="loading-screen">Loading dashboard...</div>;
 
@@ -85,6 +133,22 @@ export default function DashboardPage() {
                       {p.balance > 0 ? '+' : ''}{p.balance.toFixed(2)}
                     </div>
                     {p.pending_count > 0 && <div className="partner-pending">{p.pending_count} pending</div>}
+
+                    {/* Pay Now button — only when current user owes this partner */}
+                    {p.balance < 0 && (
+                      <button
+                        id={`pay-now-${p.id}`}
+                        className="btn-pay-now"
+                        disabled={payingPartnerId === p.id}
+                        onClick={(e) => handlePayNow(p, e)}
+                      >
+                        {payingPartnerId === p.id ? (
+                          <span className="pay-now-spinner" />
+                        ) : (
+                          <>💳 Pay ₹{Math.abs(p.balance).toFixed(2)}</>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </Link>
               ))}
