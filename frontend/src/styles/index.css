@@ -344,3 +344,54 @@ input, textarea, select { font-family: var(--font); outline: none; }
 
 .txn-summary { background: rgba(76,110,245,0.06); border: 1px solid rgba(76,110,245,0.15); border-radius: var(--radius-sm); padding: 12px 16px; }
 .txn-summary-text { font-size: 13px; color: var(--text-secondary); }
+
+/* ═══════════════════════════════════════════════════════
+   PAY NOW BUTTON (UPI / Razorpay)
+═══════════════════════════════════════════════════════ */
+.btn-pay-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.35);
+  font-family: var(--font);
+  letter-spacing: 0.2px;
+}
+.btn-pay-now:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.5);
+}
+.btn-pay-now:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-pay-now:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  min-width: 80px;
+  justify-content: center;
+}
+
+/* Spinner inside Pay Now button */
+.pay-now-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pay-spin 0.7s linear infinite;
+}
+@keyframes pay-spin {
+  to { transform: rotate(360deg); }
+}
